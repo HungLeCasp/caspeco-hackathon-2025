@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Search, 
   Filter, 
@@ -13,12 +13,76 @@ import {
   FileText,
   Calendar,
   Settings,
-  CreditCard
+  CreditCard,
+  Loader2,
+  Building2,
+  MapPin,
+  Tag,
+  ShoppingCart,
+  Globe,
+  RefreshCw
 } from "lucide-react";
 import SearchModal from "./SearchModal";
+import { performSearch } from "./api/search";
 
 export default function DataTable() {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [tableData, setTableData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Function to get appropriate icon based on type (same as SearchModal)
+  const getIconForType = (type) => {
+    if (!type) return <FileText size={16} className="text-gray-500" />;
+    
+    const normalizedType = type.toLowerCase();
+    const iconMap = {
+      'user': <User size={16} className="text-blue-500" />,
+      'company': <Building2 size={16} className="text-purple-500" />,
+      'area': <MapPin size={16} className="text-green-500" />,
+      'brand': <Tag size={16} className="text-orange-500" />,
+      'checkout': <ShoppingCart size={16} className="text-red-500" />,
+      'location': <Globe size={16} className="text-indigo-500" />,
+      'organization': <Users size={16} className="text-teal-500" />
+    };
+
+    return iconMap[normalizedType] || <FileText size={16} className="text-gray-500" />;
+  };
+
+  // Function to fetch data from API
+  const fetchData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch all data (using a broad query to get all results)
+      // You may need to adjust this query based on your API's requirements
+      const results = await performSearch('', { timeout: 10000, isGetAll: true });
+      
+      // Transform API results to table format
+      const transformedData = results.map((item, index) => ({
+        id: item.id || index + 1,
+        icon: getIconForType(item.type),
+        name: item.name || 'Unnamed Item',
+        type: item.type || 'Unknown',
+        urlPath: item.urlPath || '',
+        status: 'Active' // Default status since API doesn't provide this
+      }));
+      
+      setTableData(transformedData);
+    } catch (err) {
+      console.error('Failed to fetch table data:', err);
+      setError('Failed to load data. Please try again.');
+      setTableData([]); // Fallback to empty array
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Handle Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -34,94 +98,6 @@ export default function DataTable() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
-
-  // Sample data with various icons and types
-  const tableData = [
-    { 
-      id: 1, 
-      icon: <User size={16} className="text-blue-500" />, 
-      name: "John Doe - Desc", 
-      type: "Member Guest", 
-      status: "Active" 
-    },
-    { 
-      id: 2, 
-      icon: <User size={16} className="text-green-500" />, 
-      name: "Anna Andersson - Desc", 
-      type: "Member Guest", 
-      status: "Active" 
-    },
-    { 
-      id: 3, 
-      icon: <Briefcase size={16} className="text-purple-500" />, 
-      name: "Erik Eriksson - Desc", 
-      type: "Employee", 
-      status: "Active" 
-    },
-    { 
-      id: 4, 
-      icon: <Package size={16} className="text-orange-500" />, 
-      name: "Premium Coffee Beans - Desc", 
-      type: "Article", 
-      status: "Active" 
-    },
-    { 
-      id: 5, 
-      icon: <CreditCard size={16} className="text-red-500" />, 
-      name: "VAT 25% - Desc", 
-      type: "VAT", 
-      status: "Active" 
-    },
-    { 
-      id: 6, 
-      icon: <ShoppingBag size={16} className="text-indigo-500" />, 
-      name: "#1337 Jane Doe (5 guests) - Desc", 
-      type: "Order", 
-      status: "Active" 
-    },
-    { 
-      id: 7, 
-      icon: <Users size={16} className="text-teal-500" />, 
-      name: "Annual Meeting 2025 - Desc", 
-      type: "Conference", 
-      status: "Active" 
-    },
-    { 
-      id: 8, 
-      icon: <User size={16} className="text-pink-500" />, 
-      name: "Maria Larsson - Desc", 
-      type: "Member Guest", 
-      status: "Active" 
-    },
-    { 
-      id: 9, 
-      icon: <Briefcase size={16} className="text-yellow-500" />, 
-      name: "Peter Petterson - Desc", 
-      type: "Employee", 
-      status: "Active" 
-    },
-    { 
-      id: 10, 
-      icon: <FileText size={16} className="text-gray-500" />, 
-      name: "Kitchen Equipment - Desc", 
-      type: "Article", 
-      status: "Active" 
-    },
-    { 
-      id: 11, 
-      icon: <Calendar size={16} className="text-blue-600" />, 
-      name: "Summer Conference 2025 - Desc", 
-      type: "Conference", 
-      status: "Active" 
-    },
-    { 
-      id: 12, 
-      icon: <ShoppingBag size={16} className="text-emerald-500" />, 
-      name: "#2048 Alex Johnson (2 guests) - Desc", 
-      type: "Order", 
-      status: "Active" 
-    }
-  ];
 
   const filteredData = tableData; // Show all data in main table, search happens in modal
 
@@ -155,6 +131,16 @@ export default function DataTable() {
             
             {/* Control buttons */}
             <div className="flex items-center gap-2">
+              {/* Refresh button */}
+              <button 
+                onClick={fetchData}
+                disabled={isLoading}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh data"
+              >
+                <RefreshCw size={20} className={`text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+              
               {/* Filter/Sort button */}
               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <Filter size={20} className="text-gray-600" />
@@ -192,36 +178,70 @@ export default function DataTable() {
 
           {/* Table Body */}
           <div className="divide-y divide-gray-100">
-            {filteredData.map((item) => (
-              <div 
-                key={item.id} 
-                className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                {/* Name column with icon */}
-                <div className="col-span-6 flex items-center gap-3">
-                  <div className="flex-shrink-0">
-                    {item.icon}
-                  </div>
-                  <div className="text-gray-900 font-medium">
-                    {item.name}
-                  </div>
-                </div>
-                
-                {/* Type column */}
-                <div className="col-span-3 flex items-center">
-                  <span className="text-gray-700">
-                    {item.type}
-                  </span>
-                </div>
-                
-                {/* Status column */}
-                <div className="col-span-3 flex items-center">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    {item.status}
-                  </span>
-                </div>
+            {isLoading ? (
+              <div className="px-6 py-12 text-center">
+                <Loader2 size={48} className="mx-auto mb-4 text-gray-300 animate-spin" />
+                <p className="text-lg mb-2 text-gray-600">Loading data...</p>
+                <p className="text-sm text-gray-500">Please wait while we fetch the latest information</p>
               </div>
-            ))}
+            ) : error ? (
+              <div className="px-6 py-12 text-center">
+                <FileText size={48} className="mx-auto mb-4 text-red-300" />
+                <p className="text-lg mb-2 text-red-600">Error Loading Data</p>
+                <p className="text-sm text-gray-500">{error}</p>
+                <button 
+                  onClick={fetchData} 
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <FileText size={48} className="mx-auto mb-4 text-gray-300" />
+                <p className="text-lg mb-2 text-gray-600">No data available</p>
+                <p className="text-sm text-gray-500">There are no items to display at the moment</p>
+              </div>
+            ) : (
+              filteredData.map((item) => (
+                <div 
+                  key={item.id} 
+                  className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => {
+                    // Handle item click - could navigate to item.urlPath
+                    if (item.urlPath) {
+                      console.log('Navigate to:', item.urlPath);
+                      // You can add navigation logic here, e.g., using React Router
+                      // navigate(item.urlPath);
+                    }
+                  }}
+                >
+                  {/* Name column with icon */}
+                  <div className="col-span-6 flex items-center gap-3">
+                    <div className="flex-shrink-0">
+                      {item.icon}
+                    </div>
+                    <div className="text-gray-900 font-medium">
+                      {item.name}
+                    </div>
+                  </div>
+                  
+                  {/* Type column */}
+                  <div className="col-span-3 flex items-center">
+                    <span className="text-gray-700">
+                      {item.type}
+                    </span>
+                  </div>
+                  
+                  {/* Status column */}
+                  <div className="col-span-3 flex items-center">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      {item.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -240,7 +260,6 @@ export default function DataTable() {
       <SearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
-        data={tableData}
       />
     </div>
   );

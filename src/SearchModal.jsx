@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Search, 
   X,
@@ -11,26 +11,93 @@ import {
   FileText,
   Calendar,
   Settings,
-  CreditCard
+  CreditCard,
+  Loader2,
+  Building2,
+  MapPin,
+  Tag,
+  ShoppingCart,
+  Globe
 } from "lucide-react";
+import { performSearch } from "./api/search";
 
-export default function SearchModal({ isOpen, onClose, data }) {
+export default function SearchModal({ isOpen, onClose }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredResults, setFilteredResults] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const abortControllerRef = useRef(null);
 
-  // Filter results based on search query
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredResults([]);
+  // Function to get appropriate icon based on type
+  const getIconForType = (type) => {
+    if (!type) return <FileText size={16} className="text-gray-500" />;
+    
+    const normalizedType = type.toLowerCase();
+    const iconMap = {
+      'user': <User size={16} className="text-blue-500" />,
+      'company': <Building2 size={16} className="text-purple-500" />,
+      'area': <MapPin size={16} className="text-green-500" />,
+      'brand': <Tag size={16} className="text-orange-500" />,
+      'checkout': <ShoppingCart size={16} className="text-red-500" />,
+      'location': <Globe size={16} className="text-indigo-500" />,
+      'organization': <Users size={16} className="text-teal-500" />
+    };
+
+    return iconMap[normalizedType] || <FileText size={16} className="text-gray-500" />;
+  };
+
+  // Search function that calls the API
+  const handleSearch = async (query) => {
+    // Cancel any ongoing search
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    if (query.trim() === "") {
+      setSearchResults([]);
+      setIsLoading(false);
+      setError(null);
       return;
     }
 
-    const filtered = data.filter(item =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.type.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredResults(filtered);
-  }, [searchQuery, data]);
+    setIsLoading(true);
+    setError(null);
+    
+    // Create new abort controller for this search
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const results = await performSearch(query, {
+        signal: abortControllerRef.current.signal
+      });
+      
+      setSearchResults(results || []);
+    } catch (err) {
+      console.error('Search error:', err);
+      
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Failed to search. Please try again.');
+        setSearchResults([]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, 300); // 300ms debounce
+
+    return () => {
+      clearTimeout(timeoutId);
+      // Cancel any ongoing search when query changes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [searchQuery]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -58,7 +125,15 @@ export default function SearchModal({ isOpen, onClose, data }) {
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery("");
-      setFilteredResults([]);
+      setSearchResults([]);
+      setError(null);
+      setIsLoading(false);
+      
+      // Cancel any ongoing search
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     }
   }, [isOpen]);
 
@@ -81,7 +156,7 @@ export default function SearchModal({ isOpen, onClose, data }) {
             <input
               id="search-input"
               type="text"
-              placeholder="Search for name, type or category..."
+              placeholder="Type at least 3 characters to search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full text-lg outline-none placeholder-gray-400 text-gray-900"
@@ -103,7 +178,25 @@ export default function SearchModal({ isOpen, onClose, data }) {
                 <p className="text-lg mb-2">Start typing to search</p>
                 <p className="text-sm">Search for name, type or category</p>
               </div>
-            ) : filteredResults.length === 0 ? (
+            ) : searchQuery.trim().length < 3 ? (
+              <div className="px-4 py-12 text-center text-gray-500">
+                <Search size={48} className="mx-auto mb-4 text-gray-300" />
+                <p className="text-lg mb-2">Keep typing...</p>
+                <p className="text-sm">Type at least 3 characters to search</p>
+              </div>
+            ) : isLoading ? (
+              <div className="px-4 py-12 text-center text-gray-500">
+                <Loader2 size={48} className="mx-auto mb-4 text-gray-300 animate-spin" />
+                <p className="text-lg mb-2">Searching...</p>
+                <p className="text-sm">Please wait while we search for results</p>
+              </div>
+            ) : error ? (
+              <div className="px-4 py-12 text-center text-gray-500">
+                <Search size={48} className="mx-auto mb-4 text-red-300" />
+                <p className="text-lg mb-2 text-red-600">Search Error</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            ) : searchResults.length === 0 ? (
               <div className="px-4 py-12 text-center text-gray-500">
                 <Search size={48} className="mx-auto mb-4 text-gray-300" />
                 <p className="text-lg mb-2">No results found</p>
@@ -111,9 +204,9 @@ export default function SearchModal({ isOpen, onClose, data }) {
               </div>
             ) : (
               <div className="py-2">
-                {filteredResults.map((item) => (
+                {searchResults.map((item, index) => (
                   <div
-                    key={item.id}
+                    key={item.id || index}
                     className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
                     onClick={() => {
                       // Handle item selection here
@@ -123,20 +216,20 @@ export default function SearchModal({ isOpen, onClose, data }) {
                   >
                     <div className="flex items-center gap-3 flex-1">
                       <div className="flex-shrink-0">
-                        {item.icon}
+                        {item.icon || getIconForType(item.type || item.category)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate">
-                          {item.name}
+                          {item.name || item.title || 'Unnamed Item'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {item.type}
+                          {item.type || item.category || 'Unknown'}
                         </div>
                       </div>
                     </div>
                     <div className="flex-shrink-0 ml-4">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        {item.status}
+                        {item.status || 'Active'}
                       </span>
                     </div>
                   </div>
@@ -159,7 +252,7 @@ export default function SearchModal({ isOpen, onClose, data }) {
                 </div>
               </div>
               <div className="text-gray-400">
-                {filteredResults.length > 0 && `${filteredResults.length} results`}
+                {searchResults.length > 0 && `${searchResults.length} results`}
               </div>
             </div>
           </div>
