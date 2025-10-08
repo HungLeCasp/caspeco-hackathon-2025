@@ -17,7 +17,9 @@ import {
   MapPin,
   Tag,
   ShoppingCart,
-  Globe
+  Globe,
+  ExternalLink,
+  ChevronRight
 } from "lucide-react";
 import { performSearch } from "./api/search";
 
@@ -207,11 +209,28 @@ export default function SearchModal({ isOpen, onClose }) {
                 {searchResults.map((item, index) => (
                   <div
                     key={item.id || index}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                    className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors ${
+                      item.urlPath && item.urlPath.trim() !== '' ? 'cursor-pointer' : 'cursor-default'
+                    }`}
                     onClick={() => {
-                      // Handle item selection here
                       console.log("Selected item:", item);
-                      onClose();
+                      
+                      // Only redirect if urlPath exists and is not empty
+                      if (item.urlPath && item.urlPath.trim() !== '') {
+                        // Check if it's an external URL (starts with http:// or https://)
+                        if (item.urlPath.startsWith('http://') || item.urlPath.startsWith('https://')) {
+                          // Open external URL in new tab
+                          window.open(item.urlPath, '_blank', 'noopener,noreferrer');
+                        } else {
+                          // For internal URLs, navigate in the same window
+                          window.location.href = item.urlPath;
+                        }
+                        
+                        // Don't close the modal - let users continue searching or click more items
+                      } else {
+                        // If no URL, just log (no navigation, no modal close)
+                        console.log("No URL available for this item");
+                      }
                     }}
                   >
                     <div className="flex items-center gap-3 flex-1">
@@ -220,17 +239,25 @@ export default function SearchModal({ isOpen, onClose }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate">
-                          {item.name || item.title || 'Unnamed Item'}
+                          {item.name || 'Unknow'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {item.type || item.category || 'Unknown'}
+                          {item.type || 'Unknown'}
                         </div>
                       </div>
                     </div>
-                    <div className="flex-shrink-0 ml-4">
+                    <div className="flex-shrink-0 ml-4 flex items-center gap-2">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         {item.status || 'Active'}
                       </span>
+                      {item.urlPath && item.urlPath.trim() !== '' && (
+                        <div className="text-gray-400" title="Click to open">
+                          {item.urlPath.startsWith('http://') || item.urlPath.startsWith('https://') ? 
+                            <ExternalLink size={14} /> : 
+                            <ChevronRight size={14} />
+                          }
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
