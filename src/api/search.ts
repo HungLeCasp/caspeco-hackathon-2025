@@ -1,3 +1,5 @@
+import type { SearchResult, SearchOptions } from '../types';
+
 /**
  * Search API utility functions
  */
@@ -6,11 +8,14 @@ const SEARCH_API_BASE_URL = 'https://localhost:777/search';
 
 /**
  * Performs a search query against the API
- * @param {string} query - The search query string
- * @param {Object} options - Additional options for the request
- * @returns {Promise<Array>} - Promise that resolves to an array of search results
+ * @param query - The search query string
+ * @param options - Additional options for the request
+ * @returns Promise that resolves to an array of search results
  */
-export const performSearch = async (query, options = {}) => {    
+export const performSearch = async (
+  query: string, 
+  options: SearchOptions = {}
+): Promise<SearchResult[]> => {    
   const {
     timeout = 5000,
     signal = null,
@@ -21,8 +26,7 @@ export const performSearch = async (query, options = {}) => {
     if (!query || query.trim() === '' || query.trim().length < 3) {
       return [];
     }
-  }
-  else {
+  } else {
     query = '""'; // Broad query to fetch all results
   }
 
@@ -56,12 +60,14 @@ export const performSearch = async (query, options = {}) => {
     return Array.isArray(data) ? data : [];
     
   } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Search request timed out');
-    }
-    
-    if (error.message.includes('Failed to fetch')) {
-      throw new Error('Unable to connect to search service. Please check if the server is running on localhost:777');
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Search request timed out');
+      }
+      
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to search service. Please check if the server is running on localhost:777');
+      }
     }
     
     throw error;
@@ -70,14 +76,17 @@ export const performSearch = async (query, options = {}) => {
 
 /**
  * Creates a debounced version of the search function
- * @param {Function} searchFn - The search function to debounce
- * @param {number} delay - Delay in milliseconds
- * @returns {Function} - Debounced search function
+ * @param searchFn - The search function to debounce
+ * @param delay - Delay in milliseconds
+ * @returns Debounced search function
  */
-export const createDebouncedSearch = (searchFn, delay = 300) => {
-  let timeoutId;
+export const createDebouncedSearch = <T extends unknown[], R>(
+  searchFn: (...args: T) => Promise<R>, 
+  delay: number = 300
+) => {
+  let timeoutId: number;
   
-  return (...args) => {
+  return (...args: T): Promise<R> => {
     clearTimeout(timeoutId);
     return new Promise((resolve, reject) => {
       timeoutId = setTimeout(async () => {

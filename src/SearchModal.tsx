@@ -1,17 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Search, 
   X,
   User, 
-  Briefcase, 
-  ShoppingBag, 
-  Receipt, 
-  Package, 
-  Users,
   FileText,
-  Calendar,
-  Settings,
-  CreditCard,
   Loader2,
   Building2,
   MapPin,
@@ -19,23 +11,25 @@ import {
   ShoppingCart,
   Globe,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Users
 } from "lucide-react";
 import { performSearch } from "./api/search";
+import type { SearchResult, SearchModalProps, IconType } from "./types";
 
-export default function SearchModal({ isOpen, onClose }) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const abortControllerRef = useRef(null);
+export default function SearchModal({ isOpen, onClose }: SearchModalProps): React.JSX.Element | null {
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Function to get appropriate icon based on type
-  const getIconForType = (type) => {
+  const getIconForType = (type?: string): React.ReactNode => {
     if (!type) return <FileText size={16} className="text-gray-500" />;
     
-    const normalizedType = type.toLowerCase();
-    const iconMap = {
+    const normalizedType = type.toLowerCase() as IconType;
+    const iconMap: Record<IconType, React.ReactNode> = {
       'user': <User size={16} className="text-blue-500" />,
       'company': <Building2 size={16} className="text-purple-500" />,
       'area': <MapPin size={16} className="text-green-500" />,
@@ -49,7 +43,7 @@ export default function SearchModal({ isOpen, onClose }) {
   };
 
   // Search function that calls the API
-  const handleSearch = async (query) => {
+  const handleSearch = async (query: string): Promise<void> => {
     // Cancel any ongoing search
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -77,7 +71,7 @@ export default function SearchModal({ isOpen, onClose }) {
     } catch (err) {
       console.error('Search error:', err);
       
-      if (err.name !== 'AbortError') {
+      if (err instanceof Error && err.name !== 'AbortError') {
         setError(err.message || 'Failed to search. Please try again.');
         setSearchResults([]);
       }
@@ -103,7 +97,7 @@ export default function SearchModal({ isOpen, onClose }) {
 
   // Handle keyboard navigation
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === "Escape") {
         onClose();
       }
@@ -112,7 +106,7 @@ export default function SearchModal({ isOpen, onClose }) {
     if (isOpen) {
       document.addEventListener("keydown", handleKeyDown);
       // Focus the input when modal opens
-      const input = document.getElementById("search-input");
+      const input = document.getElementById("search-input") as HTMLInputElement;
       if (input) {
         setTimeout(() => input.focus(), 100);
       }
@@ -160,7 +154,7 @@ export default function SearchModal({ isOpen, onClose }) {
               type="text"
               placeholder="Type at least 3 characters to search..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="w-full text-lg outline-none placeholder-gray-400 text-gray-900"
               autoComplete="off"
             />
@@ -206,61 +200,66 @@ export default function SearchModal({ isOpen, onClose }) {
               </div>
             ) : (
               <div className="py-2">
-                {searchResults.map((item, index) => (
-                  <div
-                    key={item.id || index}
-                    className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors ${
-                      item.urlPath && item.urlPath.trim() !== '' ? 'cursor-pointer' : 'cursor-default'
-                    }`}
-                    onClick={() => {
-                      console.log("Selected item:", item);
-                      
-                      // Only redirect if urlPath exists and is not empty
-                      if (item.urlPath && item.urlPath.trim() !== '') {
-                        // Check if it's an external URL (starts with http:// or https://)
-                        if (item.urlPath.startsWith('http://') || item.urlPath.startsWith('https://')) {
-                          // Open external URL in new tab
-                          window.open(item.urlPath, '_blank', 'noopener,noreferrer');
-                        } else {
-                          // For internal URLs, navigate in the same window
-                          window.location.href = item.urlPath;
-                        }
-                        
-                        // Don't close the modal - let users continue searching or click more items
-                      } else {
-                        // If no URL, just log (no navigation, no modal close)
-                        console.log("No URL available for this item");
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="flex-shrink-0">
-                        {item.icon || getIconForType(item.type || item.category)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">
-                          {item.name || 'Unknow'}
+                {searchResults.map((item, index) => {
+                  const hasValidUrl = item.urlPath && 
+                                     item.urlPath.trim() !== '' && 
+                                     !item.urlPath.toLowerCase().includes('not implemented');
+                  
+                  const isExternalUrl = hasValidUrl && item.urlPath && 
+                                       (item.urlPath.startsWith('http://') || item.urlPath.startsWith('https://'));
+                  
+                  const content = (
+                    <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors w-full">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="flex-shrink-0">
+                          {item.icon || getIconForType(item.type || item.Type || item.category)}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {item.type || 'Unknown'}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 truncate">
+                            {item.name || item.Name || 'Unknown'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {item.type || item.Type || 'Unknown'}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex-shrink-0 ml-4 flex items-center gap-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {item.status || 'Active'}
+                        </span>
+                        {hasValidUrl && (
+                          <div className="text-gray-400" title="Click to open">
+                            {isExternalUrl ? 
+                              <ExternalLink size={14} /> : 
+                              <ChevronRight size={14} />
+                            }
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-shrink-0 ml-4 flex items-center gap-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        {item.status || 'Active'}
-                      </span>
-                      {item.urlPath && item.urlPath.trim() !== '' && (
-                        <div className="text-gray-400" title="Click to open">
-                          {item.urlPath.startsWith('http://') || item.urlPath.startsWith('https://') ? 
-                            <ExternalLink size={14} /> : 
-                            <ChevronRight size={14} />
-                          }
-                        </div>
-                      )}
+                  );
+
+                  return hasValidUrl ? (
+                    <a
+                      key={item.id || index}
+                      href={item.urlPath}
+                      target={isExternalUrl ? '_blank' : '_self'}
+                      rel={isExternalUrl ? 'noopener noreferrer' : undefined}
+                      className="block hover:no-underline"
+                      onClick={() => console.log("Selected item:", item)}
+                    >
+                      {content}
+                    </a>
+                  ) : (
+                    <div
+                      key={item.id || index}
+                      className="cursor-default"
+                      onClick={() => console.log("No URL available for this item or URL not implemented")}
+                    >
+                      {content}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

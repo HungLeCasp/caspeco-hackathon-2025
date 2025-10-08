@@ -1,42 +1,36 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   Search, 
   Filter, 
   MoreHorizontal, 
   Plus, 
   User, 
-  Briefcase, 
-  ShoppingBag, 
-  Receipt, 
-  Package, 
-  Users,
   FileText,
-  Calendar,
-  Settings,
-  CreditCard,
   Loader2,
   Building2,
   MapPin,
   Tag,
   ShoppingCart,
   Globe,
-  RefreshCw
+  RefreshCw,
+  Users
 } from "lucide-react";
 import SearchModal from "./SearchModal";
 import { performSearch } from "./api/search";
+import type { TableItem, SearchResult, IconType } from "./types";
 
-export default function DataTable() {
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [tableData, setTableData] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+export default function DataTable(): React.JSX.Element {
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
+  const [tableData, setTableData] = useState<TableItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Function to get appropriate icon based on type (same as SearchModal)
-  const getIconForType = (type) => {
+  const getIconForType = (type?: string): React.ReactNode => {
     if (!type) return <FileText size={16} className="text-gray-500" />;
     
-    const normalizedType = type.toLowerCase();
-    const iconMap = {
+    const normalizedType = type.toLowerCase() as IconType;
+    const iconMap: Record<IconType, React.ReactNode> = {
       'user': <User size={16} className="text-blue-500" />,
       'company': <Building2 size={16} className="text-purple-500" />,
       'area': <MapPin size={16} className="text-green-500" />,
@@ -50,29 +44,33 @@ export default function DataTable() {
   };
 
   // Function to fetch data from API
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
       
       // Fetch all data (using a broad query to get all results)
       // You may need to adjust this query based on your API's requirements
-      const results = await performSearch('', { timeout: 10000, isGetAll: true });
+      const results: SearchResult[] = await performSearch('*', { 
+        timeout: 10000,
+        isGetAll: true 
+      });
       
       // Transform API results to table format
-      const transformedData = results.map((item, index) => ({
+      const transformedData: TableItem[] = results.map((item, index) => ({
         id: item.id || index + 1,
-        icon: getIconForType(item.type),
-        name: item.name || 'Unnamed Item',
-        type: item.type || 'Unknown',
-        urlPath: item.urlPath || '',
+        icon: getIconForType(item.Type || item.type),
+        name: item.Name || item.name || 'Unnamed Item',
+        type: item.Type || item.type || 'Unknown',
+        urlPath: item.UrlPath || item.urlPath || '',
         status: 'Active' // Default status since API doesn't provide this
       }));
       
       setTableData(transformedData);
     } catch (err) {
       console.error('Failed to fetch table data:', err);
-      setError('Failed to load data. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load data. Please try again.';
+      setError(errorMessage);
       setTableData([]); // Fallback to empty array
     } finally {
       setIsLoading(false);
@@ -86,7 +84,7 @@ export default function DataTable() {
 
   // Handle Ctrl+K keyboard shortcut
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.ctrlKey && e.key === "k") {
         e.preventDefault();
         setIsSearchModalOpen(true);
